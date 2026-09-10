@@ -1,0 +1,63 @@
+name: Wrong or unexpected result
+description: A UDF builds and runs but the result is not what you expect
+title: "[result] "
+labels: ["result"]
+body:
+  - type: input
+    id: file
+    attributes:
+      label: Which file
+      placeholder: wavetank/wave_inlet_regular.c
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Fluent version
+      placeholder: 2025 R1
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and what you got
+      description: >
+        Numbers where you have them. For a wave tank, the target wave height
+        and period against what the probes show. For a moving body, the
+        expected displacement against what Fluent reports. For forces, your
+        values against Report > Forces.
+    validations:
+      required: true
+
+  - type: textarea
+    id: params
+    attributes:
+      label: The parameter block from the top of the file
+      description: Paste the section between the two "user parameters" lines.
+      render: c
+    validations:
+      required: true
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Case setup
+      description: >
+        The parts that matter for this UDF. For example: 2D or 3D, steady or
+        transient, time step, turbulence model, multiphase model and which
+        phase is primary, mesh size, which zones the UDF is hooked to.
+    validations:
+      required: true
+
+  - type: textarea
+    id: startup
+    attributes:
+      label: Start-up message from the UDF, if it prints one
+      description: >
+        Several files print a line when they first run, for example the wave
+        inlet prints the wavenumber and Ursell number, and the irregular
+        inlet prints 4 sqrt(m0). If nothing was printed, the UDF may not be
+        hooked, which is useful to know.
+      render: text

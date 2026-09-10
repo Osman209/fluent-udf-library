@@ -1,0 +1,6 @@
+tests/out/
+*.o
+*.so
+*.dll
+libudf/
+__pycache__/

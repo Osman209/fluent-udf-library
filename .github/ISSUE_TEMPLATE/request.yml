@@ -1,0 +1,27 @@
+name: Request a UDF
+description: Suggest a UDF that is not in the library yet
+title: "[request] "
+labels: ["request"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should it do
+      description: The physics or the boundary condition, in a few sentences.
+    validations:
+      required: true
+
+  - type: input
+    id: macro
+    attributes:
+      label: Which Fluent macro, if you know
+      placeholder: DEFINE_DPM_BC
+
+  - type: textarea
+    id: reference
+    attributes:
+      label: A reference for the formula, if there is one
+      description: >
+        A paper, a textbook section, a standard. This matters more than
+        anything else: with a reference the UDF can be written to match it
+        and checked against it.

@@ -1,0 +1,82 @@
+name: Build or load problem
+description: A UDF from this library will not compile, will not load, or does not appear in the hook menu
+title: "[build] "
+labels: ["build"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening this, please have a quick look at
+        [docs/compile_checklist.md](../blob/main/docs/compile_checklist.md).
+        Most build errors are listed there with what they mean.
+
+  - type: input
+    id: file
+    attributes:
+      label: Which file
+      description: The UDF you are trying to build, for example motion/sdof_spring_damper.c
+      placeholder: motion/sdof_spring_damper.c
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Fluent version
+      description: Exactly as shown in Help > About, for example 2025 R1
+      placeholder: 2025 R1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Serial or parallel
+      options:
+        - Serial
+        - Parallel
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output
+      description: >
+        Copy the text from the Fluent console, starting a few lines before the
+        first error. Please paste the text rather than a screenshot, so it can
+        be searched.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: changes
+    attributes:
+      label: What you changed in the file
+      description: >
+        The parameters at the top of the file, and anything else you edited.
+        If you did not change anything, say so.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: basics
+    attributes:
+      label: Quick checks
+      options:
+        - label: I used Compiled UDFs, not Interpreted
+        - label: The headers from common/ that the file includes are in the working directory, or added under "Header Files"
+        - label: I built in the same mode (serial or parallel) that I am running in

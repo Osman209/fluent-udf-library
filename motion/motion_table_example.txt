@@ -1,0 +1,8 @@
+# Example table for cg_motion_from_table.c
+# t [s]  vx vy vz [m/s]  wx wy wz [rad/s]
+0.0   0.0  0  0   0  0  0.0
+0.5   1.0  0  0   0  0  0.0
+1.0   2.0  0  0   0  0  0.2
+2.0   2.0  0  0   0  0  0.2
+2.5   2.0  0  0   0  0  0.0
+5.0   2.0  0  0   0  0  0.0
