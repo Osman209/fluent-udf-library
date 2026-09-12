@@ -177,6 +177,26 @@ static void t2_load(void)
         for (j = 0; j < g_nP; j++)
             if (fscanf(fp, "%lf", &g_V[i * g_nP + j]) != 1) goto bad;
     fclose(fp);
+    for (i = 1; i < g_nT; i++)
+        if (g_T[i] <= g_T[i - 1])
+        {
+            if (UDF_IS_WRITER)
+                Message("property_from_table: %s, temperatures must increase "
+                        "(row %d is %g after %g). Table ignored.\n",
+                        FILE_RHO_TP, i, g_T[i], g_T[i - 1]);
+            g_nT = g_nP = 0;
+            return;
+        }
+    for (j = 1; j < g_nP; j++)
+        if (g_P[j] <= g_P[j - 1])
+        {
+            if (UDF_IS_WRITER)
+                Message("property_from_table: %s, pressures must increase "
+                        "(row %d is %g after %g). Table ignored.\n",
+                        FILE_RHO_TP, j, g_P[j], g_P[j - 1]);
+            g_nT = g_nP = 0;
+            return;
+        }
     if (UDF_IS_WRITER)
         Message("property_from_table: %s, grid %d x %d, T = %g .. %g, P = %g .. %g\n",
                 FILE_RHO_TP, g_nT, g_nP, g_T[0], g_T[g_nT - 1], g_P[0], g_P[g_nP - 1]);
@@ -200,7 +220,7 @@ static int find_idx(const double *a, int n, double v)
 
 DEFINE_PROPERTY(density_TP, c, t)
 {
-    double T, P, ft, fp2, v00, v01, v10, v11;
+    double T, P, ft, fp2, dT, dP, v00, v01, v10, v11;
     int i, j;
 
     t2_load();
@@ -212,8 +232,13 @@ DEFINE_PROPERTY(density_TP, c, t)
     i = find_idx(g_T, g_nT, T);
     j = find_idx(g_P, g_nP, P);
 
-    ft  = (T - g_T[i]) / (g_T[i + 1] - g_T[i]);
-    fp2 = (P - g_P[j]) / (g_P[j + 1] - g_P[j]);
+    /* A table with a repeated temperature or pressure gives a zero
+     * spacing here. Dividing by it yields inf or NaN, which then spreads
+     * silently through the density field rather than stopping the run. */
+    dT  = g_T[i + 1] - g_T[i];
+    dP  = g_P[j + 1] - g_P[j];
+    ft  = (dT != 0.0) ? (T - g_T[i]) / dT : 0.0;
+    fp2 = (dP != 0.0) ? (P - g_P[j]) / dP : 0.0;
     if (ft  < 0.0) ft  = 0.0; if (ft  > 1.0) ft  = 1.0;
     if (fp2 < 0.0) fp2 = 0.0; if (fp2 > 1.0) fp2 = 1.0;
 

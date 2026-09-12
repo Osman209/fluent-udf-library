@@ -14,6 +14,9 @@ for nd in 2 3; do
   done
   echo "ND_ND=$nd: all files pass"
 done
+python3 tests/check_conditional_macros.py
+python3 tests/check_udf_patterns.py
+python3 tests/check_defaults.py
 echo "--- 2. C tests ---"
 mkdir -p tests/out && cd tests/out
 gcc -std=c99 -Wall -O2 -I ../../common ../test_wave_theory.c -o test_wave_theory -lm

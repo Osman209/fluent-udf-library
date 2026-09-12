@@ -65,9 +65,18 @@
 #define LOG_FILE "sdof_motion.csv"
 /* --------------------------------------------------------------------- */
 
+/* x0 and th0 are the spring datum: the position the body is pulled back
+ * towards. They used to be captured behind a plain "have_ref" flag, and
+ * that flag survives Initialize. So a second run kept the datum from the
+ * first one, and the spring pulled the body towards wherever the
+ * previous run happened to leave it. Nothing in the output says so - the
+ * forces are simply wrong, and quietly.
+ *
+ * The datum is now recaptured whenever the run restarts. */
 static int  have_ref = 0;
 static real x0[3], th0[3];
 static real last_logged_time = -1.0;
+static real run_last_t = -1.0;
 
 DEFINE_SDOF_PROPERTIES(spring_damper, prop, dt, time, dtime)
 {
@@ -76,6 +85,12 @@ DEFINE_SDOF_PROPERTIES(spring_damper, prop, dt, time, dtime)
     real *th = DT_THETA(dt);
     real *w  = DT_OMEGA_CG(dt);
     int i;
+
+    if (udf_restarted(time, &run_last_t))
+    {
+        have_ref = 0;              /* recapture the spring datum */
+        last_logged_time = -1.0;   /* and log from the first step again */
+    }
 
     if (!have_ref)
     {

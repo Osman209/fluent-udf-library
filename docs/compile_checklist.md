@@ -80,3 +80,56 @@ code. Write `ustar / kappa` instead.
   the Ursell number; the irregular inlet prints 4 sqrt(m0); the SDOF
   files print the reference CG. If a start-up message is missing, the
   UDF is not hooked.
+
+**"lld-link: error: undefined symbol: <your function>"** - a DEFINE_
+macro was wrapped in `#if ... #endif`. Fluent scans the source for
+DEFINE_ macros to build `udf_names` *before* the compiler runs, so it
+does not see the preprocessor condition: the name gets registered and
+then fails to link. Keep every DEFINE_ macro unconditional and guard the
+body instead:
+
+    DEFINE_SOURCE(z_mom_damp, c, t, dS, eqn)
+    {
+    #if ND_ND == 3
+        ... real work ...
+    #else
+        dS[eqn] = 0.0;
+        return 0.0;
+    #endif
+    }
+
+Reported on Fluent 2025 R1, 2D double precision.
+
+**A probe or integral reads a constant offset instead of zero** - check
+what the sum is divided by. Cells join a column when their centroid is
+inside it, so the width actually captured is a whole number of cells and
+almost never equals the nominal width you asked for. Dividing by the
+nominal width reports the ratio of the two, not the quantity. Divide by
+the measured total instead: `sum(alpha*V) / sum(V)` is exact whatever
+the cell count. Found in `wave_probe.c` on a 2D tank where neighbouring
+columns caught three and two cells and read -0.003 m and -0.336 m on the
+same flat surface.
+
+**A second run logs nothing, or appends to the first run's file** - a
+loaded library keeps its static variables across Initialize. A "have I
+written the header yet" flag never fires again, and a "log only when the
+clock has advanced" test never passes because the clock now starts
+behind where it stopped. Worse, a reference position captured on the
+first call belongs to the previous run: in `sdof_spring_damper.c` that
+meant the spring pulled the body towards wherever the last run left it,
+with nothing in the output to say so.
+
+Watch the flow time instead. `udf_restarted` in `common/udf_common.h`
+returns true on the first call and again whenever the time goes
+backwards:
+
+    static real last_t = -1.0;
+    if (udf_restarted(CURRENT_TIME, &last_t)) { /* start fresh */ }
+
+**The mean water level climbs through a wave-tank run** - not a fault. A
+progressive wave carries a net mass flux forward (Stokes drift), and
+with a wall at the far end that water has nowhere to go. For H = 0.06 m
+and T = 1.2 s in a 12 m tank it is about 4 mm over eighteen periods,
+which is 7 % of the wave height. `wave_probe_analysis.py` reports it as
+`level drift` beside each probe rather than removing it, because a level
+*falling*, or moving far more than this, is a leak and worth seeing.

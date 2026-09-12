@@ -32,7 +32,43 @@ def wavenumber(T, d, g=9.81):
     w = 2 * math.pi / T
     return brentq(lambda k: g * k * math.tanh(k * d) - w * w, 1e-6, 1e4)
 
+def _crossings(t, eta):
+    """Times where the signal crosses its own mean going up."""
+    e = eta - eta.mean()
+    i = np.where((e[:-1] < 0) & (e[1:] >= 0))[0]
+    if len(i) < 2:
+        return np.array([]), i
+    tc = t[i] - e[i] * (t[i + 1] - t[i]) / (e[i + 1] - e[i])
+    return tc, i
+
+
+def level_drift(t, eta):
+    """How far the mean level moved across the window, in metres.
+
+    Reported separately rather than removed. A progressive wave carries a
+    net mass flux forward (Stokes drift), and in a tank closed by a wall
+    that water has nowhere to go: for H = 0.06 m and T = 1.2 s in a 12 m
+    tank the level climbs about 4 mm over eighteen periods, which is 7 %
+    of the wave height. That is physics. A level falling instead, or
+    moving far more than this, is a leak somewhere and worth knowing
+    about, so the number is shown rather than quietly subtracted.
+
+    Measured as the mean of the first whole cycle against the mean of the
+    last. Fitting a straight line to the raw window instead reads the
+    leftover part-cycle at each end as a slope, and reported nearly 6 mm
+    of drift on a wave that had none at all."""
+    _, i = _crossings(t, eta)
+    if len(i) < 3:
+        return 0.0
+    return eta[i[-2]:i[-1]].mean() - eta[i[0]:i[1]].mean()
+
+
 def zero_upcross(t, eta):
+    """Wave height and period by zero-up-crossing about the mean.
+
+    Removing the mean is enough: a 4 mm drift over an eight-period window
+    changes the measured height of a 60 mm wave by 0.1 mm, which was
+    checked rather than assumed."""
     eta = eta - eta.mean()
     idx = np.where((eta[:-1] < 0) & (eta[1:] >= 0))[0]
     if len(idx) < 3:
@@ -49,6 +85,7 @@ def fourier_amp(t, eta, f):
 
 def reflection(t, e1, e2, dx, T, d):
     k = wavenumber(T, d)
+    L = 2 * math.pi / k
     s = math.sin(k * dx)
     A1 = fourier_amp(t, e1, 1 / T)
     A2 = fourier_amp(t, e2, 1 / T)
@@ -58,7 +95,7 @@ def reflection(t, e1, e2, dx, T, d):
     # where al, be carry the incident / reflected amplitude and phase.
     M = np.array([[1, 1], [np.exp(-1j * k * dx), np.exp(1j * k * dx)]])
     ai, ar = np.linalg.solve(M, np.array([A1, A2]))
-    return abs(ar) / abs(ai), abs(s)
+    return abs(ar) / abs(ai), abs(s), dx / L
 
 def analyse(path, H, T, d, n_periods=8, quiet=False):
     # read the header ourselves: numpy drops the "." in names like eta_x5.9
@@ -73,16 +110,32 @@ def analyse(path, H, T, d, n_periods=8, quiet=False):
     res = {}
     for n, x in zip(names, xs):
         Hm, Tm = zero_upcross(t[tmask], data[n][tmask])
+        drift = level_drift(t[tmask], data[n][tmask]) * 1000
         res[x] = (Hm, Tm)
         if not quiet:
-            print(f"probe x={x:g}: H = {Hm:.4f} (target {H}), T = {Tm:.4f} (target {T})")
+            print(f"probe x={x:g}: H = {Hm:.4f} (target {H}), T = {Tm:.4f} (target {T})"
+                  + (f", level drift {drift:+.1f} mm" if abs(drift) > 0.5 else ""))
     kr = None
     if len(xs) >= 2:
         x1, x2 = xs[0], xs[1]
-        kr, s = reflection(t[tmask], data[names[0]][tmask], data[names[1]][tmask], x2 - x1, T, d)
+        kr, s, ratio = reflection(t[tmask], data[names[0]][tmask],
+                                  data[names[1]][tmask], x2 - x1, T, d)
         if not quiet:
-            print(f"reflection coefficient from probes at {x1:g} and {x2:g}: Kr = {kr:.3f}"
-                  + ("   WARNING: sin(k dx) small, unreliable" if s < 0.2 else ""))
+            # The spacing itself is the thing to check. Testing only
+            # sin(k dx) misses a spacing of 0.9 wavelengths, where the
+            # sine is a healthy 0.59 but the two probes are more than
+            # half a wavelength apart and the phase has wrapped: the
+            # incident and reflected waves can no longer be separated,
+            # and a wrong number comes out looking perfectly reasonable.
+            if not (0.05 <= ratio <= 0.45):
+                print(f"reflection coefficient: NOT COMPUTED. The probes are "
+                      f"{ratio:.2f} wavelengths apart; the method needs 0.05 to 0.45. "
+                      f"Move them to about {0.3 * (x2 - x1) / ratio:.2f} m apart.")
+                kr = None
+            else:
+                print(f"reflection coefficient from probes at {x1:g} and {x2:g}: "
+                      f"Kr = {kr:.3f}  (spacing {ratio:.2f} wavelengths)"
+                      + ("   WARNING: sin(k dx) small, unreliable" if s < 0.2 else ""))
     return res, kr
 
 def selftest():

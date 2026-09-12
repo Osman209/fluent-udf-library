@@ -38,6 +38,10 @@
 static real damp_coeff(real x)
 {
     real s;
+    /* X_END == X_START would divide by zero below and fill the momentum
+     * source with NaN, which shows up as a diverged run with no clue as
+     * to why. A zero-length beach is treated as a step instead. */
+    if (X_END <= X_START) return (x >= X_START) ? C0 : 0.0;
     if (x <= X_START) return 0.0;
     if (x >= X_END)   return C0;
     s = (x - X_START) / (X_END - X_START);
@@ -66,9 +70,20 @@ DEFINE_SOURCE(y_mom_damp, c, t, dS, eqn)
     return src;
 }
 
-#if ND_ND == 3
+/* z_mom_damp is defined unconditionally, even in 2D.
+ *
+ * Fluent scans the .c file for DEFINE_ macros to build udf_names before
+ * the compiler runs, so it does not see #if ND_ND == 3. Wrapping this
+ * function in that guard makes Fluent register the name and then fail to
+ * link it:
+ *
+ *     lld-link: error: undefined symbol: z_mom_damp
+ *
+ * So the function always exists, and it is the body that is guarded. In
+ * 2D it returns zero and you simply do not hook it. */
 DEFINE_SOURCE(z_mom_damp, c, t, dS, eqn)
 {
+#if ND_ND == 3
     real xc[ND_ND], C, rho, src;
     C_CENTROID(xc, c, t);
     C   = damp_coeff(xc[0]);
@@ -76,5 +91,8 @@ DEFINE_SOURCE(z_mom_damp, c, t, dS, eqn)
     src = -rho * C * C_W(c, t);
     dS[eqn] = -rho * C;
     return src;
-}
+#else
+    dS[eqn] = 0.0;
+    return 0.0;
 #endif
+}

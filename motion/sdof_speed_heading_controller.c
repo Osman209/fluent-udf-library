@@ -60,8 +60,12 @@ static real clamp(real v, real lo, real hi)
     return (v < lo) ? lo : (v > hi) ? hi : v;
 }
 
+/* Both of these used to survive Initialize. The consequence was worse
+ * than a duplicated log: last_logged_time kept the end time of the
+ * previous run, so "log only when the clock has advanced" never passed
+ * again and the second run recorded nothing at all. */
 static real last_logged_time = -1.0;
-static int  first = 1;
+static real log_last_t = -1.0;
 
 DEFINE_SDOF_PROPERTIES(speed_heading, prop, dt, time, dtime)
 {
@@ -146,11 +150,11 @@ DEFINE_SDOF_PROPERTIES(speed_heading, prop, dt, time, dtime)
     if (UDF_IS_WRITER)
     {
         FILE *fp;
-        if (first)
+        if (udf_restarted(time, &log_last_t))
         {
             fp = fopen(LOG_FILE, "w");
             if (fp) { fprintf(fp, "t,u_fwd,heading_deg,thrust,yaw_moment\n"); fclose(fp); }
-            first = 0;
+            last_logged_time = -1.0;   /* so the new run logs from its first step */
         }
         if (time > last_logged_time)
         {

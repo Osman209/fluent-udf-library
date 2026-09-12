@@ -51,6 +51,41 @@
 #endif
 
 /* ------------------------------------------------------------------ */
+/* Has the run restarted?                                              */
+/*                                                                      */
+/* A loaded library keeps its static variables across Initialize. So a  */
+/* second run inherits the first run's state, and a "have I done this   */
+/* yet" flag never fires again. The symptoms differ by what the flag    */
+/* guarded:                                                             */
+/*   - a log file is appended to instead of rewritten, and ends up with */
+/*     two time histories interleaved                                   */
+/*   - a "only log when the clock has advanced" test never passes,      */
+/*     because the clock now starts behind where it stopped, so nothing */
+/*     is logged at all                                                 */
+/*   - worst: a reference position captured on the first call is kept,  */
+/*     so a spring datum or a moment centre silently belongs to the     */
+/*     previous run                                                     */
+/*                                                                      */
+/* The flow time going backwards is the reliable signal. Give each file */
+/* its own static and call this once per step:                          */
+/*                                                                      */
+/*     static real last_t = -1.0;                                       */
+/*     if (udf_restarted(CURRENT_TIME, &last_t)) { ...reset state... }  */
+/*                                                                      */
+/* It returns true on the very first call too, which is what you want:  */
+/* "start fresh" covers both cases.                                     */
+/* ------------------------------------------------------------------ */
+static int udf_restarted(double now, double *last)
+{
+    /* True on the first call of this library load (*last still negative)
+     * and whenever the clock has gone backwards. Testing only "now <
+     * *last" misses the first call and the file never gets its header. */
+    int fresh = (*last < 0.0) || (now < *last);
+    *last = now;
+    return fresh;
+}
+
+/* ------------------------------------------------------------------ */
 /* Linear interpolation. xs must be increasing. Clamps at both ends.   */
 /* ------------------------------------------------------------------ */
 static double udf_interp1(const double *xs, const double *ys, int n, double x)

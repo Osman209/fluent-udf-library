@@ -53,7 +53,10 @@
 #define LOG_FILE      "forces.csv"
 /* --------------------------------------------------------------------- */
 
-static int first = 1;
+/* Rewrite the log when the run restarts rather than on the first call
+ * ever: a static flag survives Initialize and the second run would be
+ * appended to the first. See udf_restarted in udf_common.h. */
+static real log_last_t = -1.0;
 
 /* Viscous force on one boundary face, from the velocity gradient in the
  * adjacent cell. tau = mu_eff (grad u + grad u^T); the traction on the
@@ -162,7 +165,7 @@ DEFINE_EXECUTE_AT_END(log_forces)
     if (UDF_IS_WRITER)
     {
         FILE *fpf;
-        if (first)
+        if (udf_restarted(CURRENT_TIME, &log_last_t))
         {
             fpf = fopen(LOG_FILE, "w");
             if (fpf)
@@ -170,7 +173,6 @@ DEFINE_EXECUTE_AT_END(log_forces)
                 fprintf(fpf, "t,Fpx,Fpy,Fpz,Fvx,Fvy,Fvz,Mx,My,Mz\n");
                 fclose(fpf);
             }
-            first = 0;
         }
         fpf = fopen(LOG_FILE, "a");
         if (fpf)
