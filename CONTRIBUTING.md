@@ -45,3 +45,10 @@ Then run:
 Also welcome, and often more useful than a new UDF. If you validated one
 of these against an experiment or a published case, a script in
 `validation/` that reproduces the comparison is a good contribution.
+
+## Validation gate for new entries
+
+Add the entry to `catalog/udfs.json`, with hooks, units, assumptions, example
+inputs and evidence. Separate mathematical tests from actual-function tests
+and Fluent execution. Do not claim all-version or parallel compatibility
+from the mock matrix. See `docs/validation-status.md`.

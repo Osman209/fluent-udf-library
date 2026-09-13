@@ -65,7 +65,7 @@ static real clamp(real v, real lo, real hi)
  * previous run, so "log only when the clock has advanced" never passed
  * again and the second run recorded nothing at all. */
 static real last_logged_time = -1.0;
-static real log_last_t = -1.0;
+static double log_last_t = -1.0;
 
 DEFINE_SDOF_PROPERTIES(speed_heading, prop, dt, time, dtime)
 {

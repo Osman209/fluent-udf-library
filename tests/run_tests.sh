@@ -33,4 +33,5 @@ python3 validation/motion_reference.py
 python3 validation/wave_probe_analysis.py --selftest
 python3 validation/sdof_reference.py --selftest
 python3 validation/profiles_check.py
+sh tests/run_regressions.sh
 echo "ALL TESTS PASSED"

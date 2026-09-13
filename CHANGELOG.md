@@ -1,3 +1,14 @@
+# Unreleased - core validation fixes
+
+- Correct piecewise-linear cp enthalpy integration and boundary continuation.
+- Correct fluid-on-wall viscous force sign in gradient method.
+- Match restart state pointers in single/double precision; exclude host writer.
+- Strict numeric 1D tables with finite/increasing checks and row diagnostics.
+- Allocation and 2D table finite/grid-size checks.
+- Explicit fixed spring datum; positive-time spring logs append on restart.
+- Actual-UDF regressions, 204 mock syntax configurations, CI, catalog and
+  a wave-tank acceptance protocol. No new Fluent runtime validation claimed.
+
 # Changelog
 
 ## 0.1.0 - 2026-09-10

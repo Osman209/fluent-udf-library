@@ -25,12 +25,22 @@
 #endif
 #define TRUE  1
 #define FALSE 0
+#ifndef RP_HOST
 #define RP_HOST 0
+#endif
+#ifndef RP_NODE
 #define RP_NODE 0
+#endif
+#ifndef I_AM_NODE_ZERO_P
 #define I_AM_NODE_ZERO_P 1
+#endif
 #define PRF_GRSUM1(x) (x)
 
+#if defined(UDF_TEST_SINGLE)
+typedef float real;
+#else
 typedef double real;
+#endif
 typedef int face_t;
 typedef int cell_t;
 typedef struct Thread_s { int id; struct Thread_s *t0; } Thread;
@@ -101,7 +111,11 @@ static Node mock_node;
 #define C_V_G(c, t)     mock_vec3
 #define C_W_G(c, t)     mock_vec3
 #define F_C0(f, t)      (0)
-#define NV_MAG(a)       sqrt((a)[0]*(a)[0] + (a)[1]*(a)[1] + (a)[2]*(a)[2])
+#if ND_ND == 3
+#define NV_MAG(a) sqrt((a)[0]*(a)[0]+(a)[1]*(a)[1]+(a)[2]*(a)[2])
+#else
+#define NV_MAG(a) sqrt((a)[0]*(a)[0]+(a)[1]*(a)[1])
+#endif
 
 /* dynamic mesh */
 #define DT_CG(dt)       ((dt)->cg)

@@ -25,7 +25,7 @@ only calls it on the nodes.
     if (UDF_IS_WRITER) fprintf(...)
 
 `PRF_GRSUM1` adds the partial sums from all nodes. Without it each node
-logs only its own partition. `UDF_IS_WRITER` (in `udf_common.h`) is true
+logs only its own partition. `UDF_IS_WRITER` (in `udf_common.h`) is false on the host, true
 on compute node 0 in parallel and true in serial, so the file gets one
 line per step instead of N.
 
@@ -56,5 +56,5 @@ once. Skipping it moves shared nodes twice and the mesh folds.
 ## Testing for parallel bugs without a cluster
 
 Run the same case with `-t2` on your own machine and compare the log
-file with the serial run. Any difference in forces, probes or motion is
-a parallel bug. Do this once for every new UDF.
+file with the serial run. Compare with a defined tolerance: small floating-point differences are
+expected; material discrepancies need investigation. Do this once for every new UDF.

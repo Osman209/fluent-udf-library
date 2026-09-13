@@ -63,7 +63,7 @@
  * ends up with two time histories interleaved. udf_restarted watches the
  * clock instead: fresh on the first call, and again whenever the time
  * goes backwards. */
-static real last_t = -1.0;
+static double last_t = -1.0;
 
 DEFINE_EXECUTE_AT_END(wave_probes)
 {

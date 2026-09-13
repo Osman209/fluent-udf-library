@@ -1,0 +1,18 @@
+{
+  "status": "not_run_in_fluent",
+  "source_commit": null,
+  "fluent_version": null,
+  "os_compiler": null,
+  "dimension": "2d_planar",
+  "precision": null,
+  "process_count": null,
+  "cell_count": null,
+  "time_step_s": null,
+  "measurement_window_s": null,
+  "wave_height_error_percent": null,
+  "period_error_percent": null,
+  "reflection_coefficient": null,
+  "mass_balance": null,
+  "mesh_time_convergence": null,
+  "console_and_results": []
+}

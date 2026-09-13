@@ -1,6 +1,10 @@
 # fluent-udf-library
 
-Ready-to-use User Defined Functions (UDFs) for ANSYS Fluent, in three packs.
+User Defined Function (UDF) examples for ANSYS Fluent, in three packs.
+
+**Status:** standalone checks pass; this revision has not been built or run
+in Fluent here. See [validation status](docs/validation-status.md) and the
+[machine-readable catalog](catalog/udfs.json) before choosing a UDF.
 
 **motion/** - rigid-body and deforming-mesh motion: prescribed translation
 and oscillation, motion from a table, six-DOF with springs and dampers, a
@@ -17,7 +21,8 @@ channel inlets, any boundary condition varying with time from a file,
 pulsatile inlets, and material properties interpolated from data.
 
 Every file has its user parameters at the top, a comment saying what it
-does and where to hook it, and works in serial and parallel Fluent.
+does and where to hook it. Serial and parallel use must be verified for
+your Fluent version and case; mock compilation is not solver validation.
 
 ## Why this exists
 
@@ -26,6 +31,8 @@ problems: it only works in serial, it double counts faces in parallel, it
 writes the log file from every process, it starts the motion with an
 impulse and the run blows up on the first step, or a formula has a sign
 wrong. This library handles those once and keeps a test for each.
+
+[ملاحظات الترقية بالعربية](docs/UPGRADE-AR.md)
 
 ## Quick start
 
@@ -44,9 +51,12 @@ file I/O and static arrays, which the interpreter does not support.
 
     sh tests/run_tests.sh
 
-Needs gcc, python3, numpy, scipy. It runs:
+Needs gcc and Python 3. Install reference dependencies with
+`python3 -m pip install -r validation/requirements.txt`. It runs:
 
-- a gcc syntax check of every UDF, in 2D and 3D, against a mock `udf.h`
+- a gcc mock syntax matrix for 2D/3D, float/double, serial/host/node
+- regressions that call the shipped cp, shear-force and spring UDF code
+- strict table validation and writer-selection tests
 - plain-C tests of the shared wave theory, the table reader and the
   profile formulas
 - numpy cross-checks that re-derive the same physics independently:
@@ -112,3 +122,17 @@ before you rely on them.
 
 Osman - mechanical engineer, CFD with ANSYS Fluent, STAR-CCM+ and LS-DYNA.
 Arabic CFD tutorials on YouTube. mohamedosmannn2999@gmail.com
+
+## Upgrade notes: corrected core
+
+- Set `SPRING_REF_X` and `SPRING_REF_TH` to the physical equilibrium.
+  The spring no longer captures the first observed position. Defaults are zero.
+- Numeric table headers must start with `#`. Bad rows now reject the entire
+  table, rather than being skipped or converted to zero. First column must
+  strictly increase; values must be finite. Legacy fallback behavior remains
+  and is printed; verify table loading before starting a case.
+- Specific heat now integrates the interpolated cp exactly between knots
+  and continues the enthalpy outside the table with clamped endpoint cp.
+- Default viscous force now reports fluid-on-wall direction. Recheck
+  force and moment comparisons before reusing old calibration results.
+- Begin Fluent verification with [the reference tank](examples/wavetank/README.md).

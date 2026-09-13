@@ -26,6 +26,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+#include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 
 #ifdef UDF_INSIDE_FLUENT
   /* inside Fluent: udf.h already defines RP_HOST, RP_NODE, I_AM_NODE_ZERO_P.
@@ -35,7 +39,9 @@
          #include "udf_common.h"
      Add common/udf_common.h and common/wave_theory.h under "Header Files"
      in the Compiled UDFs panel, or copy them next to the .c file.        */
-  #if RP_NODE
+  #if RP_HOST
+    #define UDF_IS_WRITER (0)
+  #elif RP_NODE
     #define UDF_IS_WRITER (I_AM_NODE_ZERO_P)
   #else
     #define UDF_IS_WRITER (1)
@@ -69,7 +75,7 @@
 /* The flow time going backwards is the reliable signal. Give each file */
 /* its own static and call this once per step:                          */
 /*                                                                      */
-/*     static real last_t = -1.0;                                       */
+/*     static double last_t = -1.0;                                       */
 /*     if (udf_restarted(CURRENT_TIME, &last_t)) { ...reset state... }  */
 /*                                                                      */
 /* It returns true on the very first call too, which is what you want:  */
@@ -106,53 +112,89 @@ static double udf_interp1(const double *xs, const double *ys, int n, double x)
 }
 
 /* ------------------------------------------------------------------ */
-/* Read a numeric table. Lines starting with # are comments. Values     */
-/* separated by commas, spaces or tabs. Returns number of rows read,    */
-/* or -1 if the file cannot be opened. data is allocated with malloc    */
-/* and laid out row-major: data[row*ncol + col].                        */
-/* ------------------------------------------------------------------ */
+/* Strict numeric table: # comments and blank lines are accepted.
+ * Exactly ncol finite values per row; first column strictly increasing.
+ * Returns rows, -1 for I/O/allocation failure, -2 for invalid input.
+ * On failure *data is NULL; the caller owns successful allocated data.
+ * Text headers must start with #. Malformed rows reject the whole table.
+ */
 static int udf_read_table(const char *fname, int ncol, double **data)
 {
     FILE *fp;
-    char line[1024];
-    int rows = 0, cap = 256, c;
-    double *d;
-
+    char line[4096];
+    int rows = 0, cap = 256, lineno = 0, c, result = -2;
+    double *d = NULL;
+    if (!data) return -2;
+    *data = NULL;
+    if (ncol < 1 || ncol > 64) return -2;
     fp = fopen(fname, "r");
     if (!fp) return -1;
-
     d = (double *)malloc(sizeof(double) * cap * ncol);
     if (!d) { fclose(fp); return -1; }
-
     while (fgets(line, sizeof(line), fp))
     {
-        char *tok, *p = line;
+        char *p = line, *end;
         double vals[64];
-        int got = 0;
-
-        while (*p == ' ' || *p == '\t') p++;
-        if (*p == '#' || *p == '\n' || *p == '\r' || *p == '\0') continue;
-
-        tok = strtok(p, ", \t\r\n");
-        while (tok && got < 64)
+        lineno++;
+        if (!strchr(line, '\n') && !feof(fp)) goto bad;
+        while (isspace((unsigned char)*p)) p++;
+        if (*p == '#' || !*p) continue;
+        for (c = 0; c < ncol; c++)
         {
-            vals[got++] = atof(tok);
-            tok = strtok(NULL, ", \t\r\n");
+            errno = 0;
+            vals[c] = strtod(p, &end);
+            if (end == p || errno == ERANGE || !isfinite(vals[c])) goto bad;
+            p = end;
+            if (c + 1 < ncol)
+            {
+                int had_space = isspace((unsigned char)*p);
+                while (isspace((unsigned char)*p)) p++;
+                if (*p == ',') { p++; while (isspace((unsigned char)*p)) p++; }
+                else if (!had_space) goto bad;
+            }
         }
-        if (got < ncol) continue; /* skip malformed line */
-
+        while (isspace((unsigned char)*p)) p++;
+        if (*p && *p != '#') goto bad;
+        if (rows && vals[0] <= d[(rows - 1) * ncol]) goto bad;
         if (rows == cap)
         {
+            double *grown;
+            if (cap > INT_MAX / (2 * ncol)) { result = -1; goto bad; }
             cap *= 2;
-            d = (double *)realloc(d, sizeof(double) * cap * ncol);
-            if (!d) { fclose(fp); return -1; }
+            grown = (double *)realloc(d, sizeof(double) * (size_t)cap * ncol);
+            if (!grown) { result = -1; goto bad; }
+            d = grown;
         }
         for (c = 0; c < ncol; c++) d[rows * ncol + c] = vals[c];
         rows++;
     }
+    if (ferror(fp)) { result = -1; goto bad; }
     fclose(fp);
+    if (!rows) { free(d); return 0; }
     *data = d;
     return rows;
+bad:
+    if (UDF_IS_WRITER) UDF_MESSAGE("table %s: rejected at line %d (columns, finite values, or increasing axis)\n", fname, lineno);
+    free(d);
+    fclose(fp);
+    return result;
 }
 
+/* Antiderivative of the piecewise-linear property, based at xs[0].
+ * prefix[i] is its exact integral at knot i. Outside the table the
+ * property is clamped, so the integral continues LINEARLY, not flat.
+ */
+static double udf_integral1(const double *xs, const double *ys,
+                           const double *prefix, int n, double x)
+{
+    int lo = 0, hi = n - 1, mid;
+    double dx, slope;
+    if (n <= 0) return 0.0;
+    if (n == 1 || x <= xs[0]) return ys[0] * (x - xs[0]);
+    if (x >= xs[n - 1]) return prefix[n - 1] + ys[n - 1] * (x - xs[n - 1]);
+    while (hi - lo > 1) { mid = (lo + hi) / 2; if (xs[mid] <= x) lo = mid; else hi = mid; }
+    dx = x - xs[lo];
+    slope = (ys[hi] - ys[lo]) / (xs[hi] - xs[lo]);
+    return prefix[lo] + ys[lo] * dx + 0.5 * slope * dx * dx;
+}
 #endif /* UDF_COMMON_H */

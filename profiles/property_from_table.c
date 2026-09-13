@@ -47,7 +47,7 @@
 #define FILE_K      "k_T.txt"
 #define FILE_CP     "cp_T.txt"
 #define FILE_RHO_TP "rho_TP.txt"
-#define T_REF       298.15     /* K, reference temperature for enthalpy */
+/* Enthalpy uses the Tref supplied by Fluent; no separate reference. */
 /* --------------------------------------------------------------------- */
 
 typedef struct {
@@ -79,22 +79,21 @@ static void t1_load(Table1D *tb, int build_enthalpy)
     }
     tb->x = (double *)malloc(sizeof(double) * n);
     tb->y = (double *)malloc(sizeof(double) * n);
+    if (!tb->x || !tb->y) { free(raw); free(tb->x); free(tb->y); tb->x = tb->y = NULL; return; }
     for (r = 0; r < n; r++) { tb->x[r] = raw[2 * r]; tb->y[r] = raw[2 * r + 1]; }
     tb->n = n;
     free(raw);
 
     if (build_enthalpy)
     {
-        /* h(x_i) = integral from T_REF to x_i of y dx, trapezium rule.
-         * Built by cumulating from the first point then shifting so
-         * that h(T_REF) = 0. */
+        /* Exact integral of piecewise-linear cp at the knots, based
+         * at the first knot. Partial segments are integrated below. */
         double *c = (double *)malloc(sizeof(double) * n);
-        double h_ref;
+        if (!c) { free(tb->x); free(tb->y); tb->x = tb->y = NULL; tb->n = 0; return; }
         c[0] = 0.0;
         for (r = 1; r < n; r++)
             c[r] = c[r - 1] + 0.5 * (tb->y[r] + tb->y[r - 1]) * (tb->x[r] - tb->x[r - 1]);
-        h_ref = udf_interp1(tb->x, c, n, T_REF);
-        for (r = 0; r < n; r++) c[r] -= h_ref;
+
         tb->h = c;
     }
 
@@ -136,8 +135,8 @@ DEFINE_SPECIFIC_HEAT(cp_T, T, Tref, h, yi)
     t1_load(&tb_cp, 1);
     if (tb_cp.n == 0) { *h = 4182.0 * (T - Tref); return 4182.0; }
     cp = (real)udf_interp1(tb_cp.x, tb_cp.y, tb_cp.n, T);
-    *h = (real)(udf_interp1(tb_cp.x, tb_cp.h, tb_cp.n, T)
-              - udf_interp1(tb_cp.x, tb_cp.h, tb_cp.n, Tref));
+    *h = (real)(udf_integral1(tb_cp.x, tb_cp.y, tb_cp.h, tb_cp.n, T)
+              - udf_integral1(tb_cp.x, tb_cp.y, tb_cp.h, tb_cp.n, Tref));
     return cp;
 }
 
@@ -161,7 +160,7 @@ static void t2_load(void)
             Message("property_from_table: cannot read %s\n", FILE_RHO_TP);
         return;
     }
-    if (fscanf(fp, "%d %d", &g_nT, &g_nP) != 2 || g_nT < 2 || g_nP < 2)
+    if (fscanf(fp, "%d %d", &g_nT, &g_nP) != 2 || g_nT < 2 || g_nP < 2 || g_nT > 10000 || g_nP > 10000 || (double)g_nT * g_nP > 1000000)
     {
         if (UDF_IS_WRITER)
             Message("property_from_table: bad header in %s "
@@ -171,11 +170,15 @@ static void t2_load(void)
     g_T = (double *)malloc(sizeof(double) * g_nT);
     g_P = (double *)malloc(sizeof(double) * g_nP);
     g_V = (double *)malloc(sizeof(double) * g_nT * g_nP);
+    if (!g_T || !g_P || !g_V) goto bad;
     for (i = 0; i < g_nT; i++) if (fscanf(fp, "%lf", &g_T[i]) != 1) goto bad;
     for (j = 0; j < g_nP; j++) if (fscanf(fp, "%lf", &g_P[j]) != 1) goto bad;
     for (i = 0; i < g_nT; i++)
         for (j = 0; j < g_nP; j++)
             if (fscanf(fp, "%lf", &g_V[i * g_nP + j]) != 1) goto bad;
+    for (i = 0; i < g_nT; i++) if (!isfinite(g_T[i])) goto bad;
+    for (j = 0; j < g_nP; j++) if (!isfinite(g_P[j])) goto bad;
+    for (i = 0; i < g_nT * g_nP; i++) if (!isfinite(g_V[i])) goto bad;
     fclose(fp);
     for (i = 1; i < g_nT; i++)
         if (g_T[i] <= g_T[i - 1])
@@ -184,6 +187,7 @@ static void t2_load(void)
                 Message("property_from_table: %s, temperatures must increase "
                         "(row %d is %g after %g). Table ignored.\n",
                         FILE_RHO_TP, i, g_T[i], g_T[i - 1]);
+            free(g_T); free(g_P); free(g_V); g_T = g_P = g_V = NULL;
             g_nT = g_nP = 0;
             return;
         }
@@ -194,6 +198,7 @@ static void t2_load(void)
                 Message("property_from_table: %s, pressures must increase "
                         "(row %d is %g after %g). Table ignored.\n",
                         FILE_RHO_TP, j, g_P[j], g_P[j - 1]);
+            free(g_T); free(g_P); free(g_V); g_T = g_P = g_V = NULL;
             g_nT = g_nP = 0;
             return;
         }
@@ -205,6 +210,7 @@ bad:
     if (UDF_IS_WRITER)
         Message("property_from_table: %s ended early, expected %d values\n",
                 FILE_RHO_TP, g_nT * g_nP);
+    free(g_T); free(g_P); free(g_V); g_T = g_P = g_V = NULL;
     g_nT = g_nP = 0;
     fclose(fp);
 }

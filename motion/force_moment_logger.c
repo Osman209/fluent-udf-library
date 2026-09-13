@@ -27,7 +27,7 @@
  *       the code works in any Fluent version that has those macros.
  *       With wall functions and a coarse near-wall mesh this
  *       underestimates the shear, exactly as any cell-gradient estimate
- *       does; on a y+ ~ 1 mesh it is accurate.
+ *       does; on a resolved mesh it still requires comparison with Fluent reports.
  *   2 = SV_WALL_SHEAR. Reads Fluent's own stored wall shear vector, so
  *       it matches Report > Forces on any mesh. This macro is NOT in
  *       the Ansys UDF manual: its sign convention is not published and
@@ -56,11 +56,11 @@
 /* Rewrite the log when the run restarts rather than on the first call
  * ever: a static flag survives Initialize and the second run would be
  * appended to the first. See udf_restarted in udf_common.h. */
-static real log_last_t = -1.0;
+static double log_last_t = -1.0;
 
 /* Viscous force on one boundary face, from the velocity gradient in the
  * adjacent cell. tau = mu_eff (grad u + grad u^T); the traction on the
- * face is tau . n_hat; the force on the wall is traction * area, with
+ * face is tau . n_hat; the force on the wall is MINUS traction * area, with
  * the normal component removed so only shear is left. */
 #if !RP_HOST
 static void visc_force_gradient(face_t f, Thread *t, real fv[3])
@@ -97,7 +97,7 @@ static void visc_force_gradient(face_t f, Thread *t, real fv[3])
             trac[i] += tau[i][j] * nhat[j];
 
     for (i = 0; i < 3; i++) tn += trac[i] * nhat[i];
-    for (i = 0; i < 3; i++) fv[i] = (trac[i] - tn * nhat[i]) * area;
+    for (i = 0; i < 3; i++) fv[i] = -(trac[i] - tn * nhat[i]) * area;
 }
 #endif
 

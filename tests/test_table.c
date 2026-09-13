@@ -21,14 +21,14 @@ int main(void)
     fprintf(fp, "# t vx vy vz wx wy wz\n");
     fprintf(fp, "0.0, 0, 0, 0, 0, 0, 0\n");
     fprintf(fp, "1.0\t2.0 0 0 0 0 0.5\n");
-    fprintf(fp, "bad line here\n");
+
     fprintf(fp, "2.0 4.0 0 0 0 0 1.0\n");
     fprintf(fp, "\n");
     fprintf(fp, "3.0 4.0 0 0 0 0 1.0\n");
     fclose(fp);
 
     n = udf_read_table(fname, 7, &d);
-    CHECK(n == 4, "4 valid rows read, comment/blank/malformed skipped");
+    CHECK(n == 4, "4 valid rows read, comments and blank lines skipped");
     for (r = 0; r < n; r++) { ts[r] = d[r * 7]; vx[r] = d[r * 7 + 1]; }
 
     CHECK(fabs(udf_interp1(ts, vx, n, 0.5) - 1.0) < 1e-12, "interp at 0.5 -> 1.0");
@@ -36,6 +36,7 @@ int main(void)
     CHECK(fabs(udf_interp1(ts, vx, n, -5.0) - 0.0) < 1e-12, "clamp below -> 0.0");
     CHECK(fabs(udf_interp1(ts, vx, n, 99.0) - 4.0) < 1e-12, "clamp above -> 4.0");
     CHECK(fabs(udf_interp1(ts, vx, n, 2.0) - 4.0) < 1e-12, "exact node -> 4.0");
+    free(d); d = NULL;
     CHECK(udf_read_table("does_not_exist.txt", 7, &d) == -1, "missing file -> -1");
 
     remove(fname);

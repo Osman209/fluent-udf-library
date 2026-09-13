@@ -69,6 +69,7 @@ static void tt_load(TimeTable *tt)
     }
     tt->t = (double *)malloc(sizeof(double) * n);
     tt->v = (double *)malloc(sizeof(double) * n);
+    if (!tt->t || !tt->v) { free(raw); free(tt->t); free(tt->v); tt->t = tt->v = NULL; return; }
     for (r = 0; r < n; r++) { tt->t[r] = raw[2 * r]; tt->v[r] = raw[2 * r + 1]; }
     tt->n = n;
     free(raw);

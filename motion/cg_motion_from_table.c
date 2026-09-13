@@ -43,7 +43,7 @@ static void load_table(void)
     if (tab_ok) return;
 
     tab_rows = udf_read_table(TABLE_FILE, NCOL, &tab);
-    if (tab_rows <= 1)
+    if (tab_rows <= 0)
     {
         Message("cg_motion_from_table: could not read %s (rows=%d). "
                 "Motion set to zero.\n", TABLE_FILE, tab_rows);
@@ -54,6 +54,11 @@ static void load_table(void)
 
     tab_t   = (double *)malloc(sizeof(double) * tab_rows);
     tab_col = (double *)malloc(sizeof(double) * tab_rows);
+    if (!tab_t || !tab_col) {
+        free(tab); free(tab_t); free(tab_col);
+        tab = tab_t = tab_col = NULL; tab_rows = 0; tab_ok = 1;
+        Message("motion table: allocation failed, motion disabled\n"); return;
+    }
     for (r = 0; r < tab_rows; r++)
         tab_t[r] = tab[r * NCOL];
 

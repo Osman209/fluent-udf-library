@@ -14,7 +14,7 @@
  *
  * Forces:   F_i = -K_i (x_i - x0_i) - C_i v_i      (global frame)
  * Moments:  M_i = -KR_i (theta_i - theta0_i) - CR_i omega_i
- * x0, theta0 are the values at the first call (the initial position).
+ * x0, theta0 are explicit fixed reference parameters, preserved on restart.
  * The rotational spring is written for small angles about each axis.
  *
  * Output: sdof_motion.csv in the working directory, one line per time
@@ -62,21 +62,18 @@
 #define LOCK_RY 1
 #define LOCK_RZ 1
 
+/* Global spring equilibrium position [m] and small-angle orientation [rad].
+ * Set these to the physical equilibrium datum, NOT a displaced restart CG. */
+#define SPRING_REF_X {0.0, 0.0, 0.0}
+#define SPRING_REF_TH {0.0, 0.0, 0.0}
 #define LOG_FILE "sdof_motion.csv"
 /* --------------------------------------------------------------------- */
 
-/* x0 and th0 are the spring datum: the position the body is pulled back
- * towards. They used to be captured behind a plain "have_ref" flag, and
- * that flag survives Initialize. So a second run kept the datum from the
- * first one, and the spring pulled the body towards wherever the
- * previous run happened to leave it. Nothing in the output says so - the
- * forces are simply wrong, and quietly.
- *
- * The datum is now recaptured whenever the run restarts. */
-static int  have_ref = 0;
-static real x0[3], th0[3];
+/* Fixed physical datum does not change on Initialize or library reload. */
+static const real x0[3] = SPRING_REF_X;
+static const real th0[3] = SPRING_REF_TH;
 static real last_logged_time = -1.0;
-static real run_last_t = -1.0;
+static double run_last_t = -1.0;
 
 DEFINE_SDOF_PROPERTIES(spring_damper, prop, dt, time, dtime)
 {
@@ -88,20 +85,14 @@ DEFINE_SDOF_PROPERTIES(spring_damper, prop, dt, time, dtime)
 
     if (udf_restarted(time, &run_last_t))
     {
-        have_ref = 0;              /* recapture the spring datum */
-        last_logged_time = -1.0;   /* and log from the first step again */
-    }
-
-    if (!have_ref)
-    {
-        for (i = 0; i < 3; i++) { x0[i] = x[i]; th0[i] = th[i]; }
-        have_ref = 1;
+        last_logged_time = -1.0;
         if (UDF_IS_WRITER)
         {
-            FILE *fp = fopen(LOG_FILE, "w");
+            FILE *fp = fopen(LOG_FILE, time > 0.0 ? "a+" : "w");
             if (fp)
             {
-                fprintf(fp, "t,x,y,z,vx,vy,vz,thx,thy,thz,wx,wy,wz\n");
+                fseek(fp, 0, SEEK_END);
+                if (ftell(fp) == 0) fprintf(fp, "t,x,y,z,vx,vy,vz,thx,thy,thz,wx,wy,wz\n");
                 fclose(fp);
             }
             Message("sdof_spring_damper: reference CG = (%g, %g, %g)\n",
